@@ -8,13 +8,9 @@ MAC アドレス／BSSID から製造元を引く。その前に **そのアド�
 [`tor-exit-lookup`](https://github.com/nlink-jp/tor-exit-lookup)（オフライン
 membership 判定）に対する L2 側の姉妹品。
 
-> **状態: スキャフォールド。** ビルド・パッケージング・コマンド体系は整備済み。
-> リゾルバ本体は Phase 3 で実装する。
-> [docs/ja/mac-lookup-rfp.ja.md](docs/ja/mac-lookup-rfp.ja.md) を参照。
-
 ## なぜ作るのか
 
-ベンダー表を引くだけでは誤答する。先に片付けるべきことが 2 つある。
+ベンダー表を引くだけでは誤答する。先に片付けるべきことが 3 つある。
 
 - **ランダム化 MAC に製造元は存在しない。** 現代のスマートフォンはネットワーク
   ごとに Locally Administered Address を使い分ける。仮想 NIC やコンテナも同様。
@@ -24,6 +20,10 @@ membership 判定）に対する L2 側の姉妹品。
 - **先頭 6 桁では足りない。** IEEE は 24bit プレフィクスを 28bit(MA-M) や
   36bit(MA-S/IAB) に分割して割り当てるため、1 つの OUI を複数ベンダーが共有する。
   mac-lookup は 36 → 28 → 24 の最長一致で照合する。
+- **IEEE 自身が保有するブロックがある。** MA-L の約 429 行は登録者が
+  「IEEE Registration Authority」であり、これは細分化のために留保された
+  ブロックであって製造元ではない。mac-lookup は **「OUI 分割済み」** と返し、
+  ベンダー名としては決して出さない。
 
 すべてローカルキャッシュから応答するため、調査対象が観測できるネットワークに
 一切触れない。
@@ -57,6 +57,21 @@ mac-lookup mcp                           # MCP サーバーとして起動 (stdi
 Cisco 形式の `0011.2233.4455`、および 24/28/36bit の部分プレフィクス
 （`00:11:22`、`8C:1F:64:AF:A`）。
 
+```
+$ mac-lookup lookup 8C:1F:64:AF:A0:01 8C:1F:64:00:00:01 DA:A1:19:12:34:56 00:00:5E:00:01:2A FF:FF:FF:FF:FF:FF
+8C:1F:64:AF:A0:01  DATA ELECTRONIC DEVICES, INC  [MA-S /36]
+8C:1F:64:00:00:01  Suzhou Xingxiangyi Precision Manufacturing Co.,Ltd.  [MA-S /36]
+DA:A1:19:12:34:56  Google, Inc.  [CID /24]  (locally administered)
+00:00:5E:00:01:2A  ICANN, IANA Department  [MA-L /24]  (VRRP (IPv4, RFC 5798))
+FF:FF:FF:FF:FF:FF  (broadcast — Broadcast)
+```
+
+このうち 2 行が本ツールの存在理由である。`8C:1F:64` は IEEE 保有ブロックなので、
+ベンダー名は OUI ではなくその内側の 36bit 割当から取れている。`DA:A1:19` は
+Locally Administered で、CID レジストリがプレフィクスの割当元として Google を
+示すが、**このアドレスは安定した端末識別子ではなく、ネットワークをまたいだ
+相関に使ってはならない**。行末にそう明示しているのはそのためである。
+
 ### 終了コード
 
 `lookup` は **単一アドレス + text 出力時のみ** grep 風の終了コードを返す。
@@ -64,7 +79,7 @@ Cisco 形式の `0011.2233.4455`、および 24/28/36bit の部分プレフィ�
 | Code | 意味 |
 |---|---|
 | `0` | ベンダー名が確定した |
-| `1` | ベンダー名が出ない（未割り当て / Locally Administered / multicast / `Private` 登録） |
+| `1` | ベンダー名が出ない（未割り当て / Locally Administered / multicast / OUI 分割済み / `Private` 登録） |
 | `2` | エラー |
 
 ```bash
@@ -97,11 +112,19 @@ IEEE 側の再生成が 1 日 1 回程度のため、それ以上の頻度で叩
 ため、結果は呼び出し側の `workspace_root` 配下に書き出し、`matches_file` の
 パスを返す。
 
+### JSON 出力
+
+`--json` はアドレスごとに 1 オブジェクトを出力する。**`vendor` より先に
+`vendor_lookup_applicable` を読むこと。** これが `false` のとき、`vendor` が
+空なのは「照会に失敗した」のではなく「探すべきものが存在しない」ことを意味する。
+どちらであるかは `note` に文章で入る。登録住所は IEEE の原文のまま保持し、
+フリーテキストであるため国コードの抽出は行わない。
+
 ## データ
 
 IEEE Registration Authority の公開レジストリ — MA-L / MA-M / MA-S / IAB / CID
-(<https://standards.ieee.org/products-programs/regauth/>)。合計約 58,000 件。
-認証不要。
+(<https://standards.ieee.org/products-programs/regauth/>)。2026-07-26 時点で
+58,212 件。認証不要。
 
 レジストリデータは実行時にダウンロードしてローカルにキャッシュする。
 本ツールに同梱・再配布はしない。

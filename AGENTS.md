@@ -88,6 +88,21 @@ All optional; every one overrides the config file. There are **no credentials**.
   vendors. Match 36 → 28 → 24, longest first.
 - **`Private` means assigned-but-undisclosed**, not unassigned. It is common in
   MA-M. Do not flatten it into the not-found path.
+- **"IEEE Registration Authority" is a block holder, not a manufacturer.**
+  About 429 MA-L rows are registered to IEEE itself: 24-bit blocks retained so
+  they can be resold as MA-M / MA-S / IAB assignments. Landing on one means the
+  narrower assignment was not found, which is reported as `subdivided`. Printing
+  that organization as the vendor would claim IEEE builds network cards.
+- **CID is the locally administered registry, and is indexed separately.** CID
+  prefixes have the U/L bit set by construction, so they are unreachable from
+  the universal path and would only add false matches to the OUI index. A CID
+  hit is the one case where `vendor` is populated while
+  `vendor_lookup_applicable` is `false`; the `note` has to explain that, or the
+  two fields read as a contradiction.
+- **`update` distinguishes 304 from unreachable.** Both keep the cached
+  entries, but `not_modified` means nothing changed upstream while `fallback`
+  means IEEE could not be reached and the data is stale. Collapsing them would
+  let a failed refresh look like a successful one.
 - **Do not spoof a browser User-Agent.** The IEEE origin answers
   `User-Agent: Mozilla/5.0` with `418 I'm a Teapot`, while a plain client UA
   gets `200` (measured 2026-07-26). `ieee.UserAgent` names the tool honestly —

@@ -1,12 +1,13 @@
 package app
 
 import (
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 )
 
-func TestRunExitCodes(t *testing.T) {
+func TestRunMetaCommands(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
@@ -18,13 +19,6 @@ func TestRunExitCodes(t *testing.T) {
 		{"version succeeds", []string{"version"}, 0},
 		{"version flag succeeds", []string{"--version"}, 0},
 		{"unknown command fails", []string{"nope"}, exitError},
-		// Scaffold: the data commands are recognised by the dispatcher but not
-		// implemented until Phase 3. These cases change to real assertions then.
-		{"lookup is dispatched", []string{"lookup", "00:11:22:33:44:55"}, exitError},
-		{"search is dispatched", []string{"search", "Apple"}, exitError},
-		{"update is dispatched", []string{"update"}, exitError},
-		{"status is dispatched", []string{"status"}, exitError},
-		{"mcp is dispatched", []string{"mcp"}, exitError},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -32,6 +26,59 @@ func TestRunExitCodes(t *testing.T) {
 				t.Errorf("Run(%q) = %d, want %d", tt.args, got, tt.want)
 			}
 		})
+	}
+}
+
+// isolated returns flags that point every command at a scratch config and an
+// absent store, so a test can exercise dispatch without touching the network or
+// the developer's own cache.
+func isolated(t *testing.T) []string {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, "config"))
+	t.Setenv("XDG_DATA_HOME", filepath.Join(dir, "data"))
+	t.Setenv("XDG_STATE_HOME", filepath.Join(dir, "state"))
+	return []string{
+		"--config", filepath.Join(dir, "absent.toml"),
+		"--store", filepath.Join(dir, "absent.json"),
+	}
+}
+
+func TestRunDataCommandsWithoutCache(t *testing.T) {
+	// With no registry downloaded, every read command must fail cleanly with
+	// the "run update" hint rather than reaching for the network. --no-update
+	// keeps `lookup` from auto-refetching during the test.
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{"lookup", []string{"lookup", "--no-update", "00:11:22:33:44:55"}},
+		{"search", []string{"search", "Apple"}},
+		{"status", []string{"status"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			args := append(tt.args, isolated(t)...)
+			if got := Run(args, "test"); got != exitError {
+				t.Errorf("Run(%q) = %d, want %d", args, got, exitError)
+			}
+		})
+	}
+}
+
+func TestRunLookupRejectsUnparseableAddress(t *testing.T) {
+	args := append([]string{"lookup", "--no-update", "not-a-mac"}, isolated(t)...)
+	// The address is rejected before the store is ever consulted.
+	if got := Run(args, "test"); got != exitError {
+		t.Errorf("Run(%q) = %d, want %d", args, got, exitError)
+	}
+}
+
+func TestRunMCPExitsCleanlyOnEOF(t *testing.T) {
+	// Serve returns at EOF; with no stdin attached the loop ends immediately.
+	args := append([]string{"mcp"}, isolated(t)...)
+	if got := Run(args, "test"); got != 0 {
+		t.Errorf("Run(%q) = %d, want 0", args, got)
 	}
 }
 

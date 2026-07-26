@@ -38,15 +38,15 @@ func Run(args []string, version string) int {
 	cmd, rest := args[0], args[1:]
 	switch cmd {
 	case "lookup":
-		return notImplemented("lookup", rest)
+		return cmdLookup(rest)
 	case "search":
-		return notImplemented("search", rest)
+		return cmdSearch(rest)
 	case "update":
-		return notImplemented("update", rest)
+		return cmdUpdate(rest)
 	case "status":
-		return notImplemented("status", rest)
+		return cmdStatus(rest)
 	case "mcp":
-		return notImplemented("mcp", rest)
+		return cmdMCP(rest, version)
 	case "version", "--version", "-v":
 		fmt.Println("mac-lookup " + version)
 		fmt.Println("Data: IEEE Registration Authority public registries (https://standards.ieee.org/products-programs/regauth/).")
@@ -59,13 +59,6 @@ func Run(args []string, version string) int {
 		usage(os.Stderr)
 		return exitError
 	}
-}
-
-// notImplemented is the Phase 2 scaffold placeholder. Phase 3 replaces each
-// call with the real command.
-func notImplemented(cmd string, _ []string) int {
-	fmt.Fprintf(os.Stderr, "mac-lookup: %q is not implemented yet (scaffold; see docs/en/mac-lookup-rfp.md Phase 3)\n", cmd)
-	return exitError
 }
 
 func usage(w io.Writer) {

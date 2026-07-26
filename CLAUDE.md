@@ -50,6 +50,15 @@ for the "why".
 - **`Private` is not "unassigned".** IEEE lets a registrant withhold their name;
   that is a registered assignment whose organization is undisclosed. Keep the
   distinction in the output.
+- **"IEEE Registration Authority" is not a manufacturer.** ~429 MA-L rows are
+  registered to IEEE itself — 24-bit blocks held back for subdivision. Falling
+  back to one means the narrower assignment was not found: report `subdivided`,
+  never that organization name.
+- **CID is the locally administered registry.** CID prefixes have the U/L bit
+  set by construction, so they are only ever reached on the local path and must
+  not pollute the OUI index. A CID hit populates `vendor` while
+  `vendor_lookup_applicable` stays `false` — those two look contradictory, so
+  the `note` must always explain it.
 - **The registrant address stays verbatim.** It is free text with inconsistent
   formatting, so no country code or other field is parsed out of it — the
   mis-extraction rate would exceed the value.
@@ -75,9 +84,14 @@ for the "why".
 
 ## Status
 
-Phase 1 (RFP) and Phase 2 (scaffold) complete, in `_wip/` — local only, not yet
-pushed. The `lookup`/`search`/`update`/`status`/`mcp` commands are dispatched
-but not implemented. Next: Phase 3 (core + features + release). No version tags.
+Phase 1 (RFP), Phase 2 (scaffold), and Phase 3 core + features are complete, in
+`_wip/` — local only, not yet pushed. All commands work and have been verified
+against the live IEEE registries (58,212 assignments). Remaining: release and
+org integration (repo creation, notarized build, tap, submodule, org profile,
+`check-org.sh`). No version tags.
+
+`usage.md` is pinned by `usage_test.go`: adding or renaming a tool, a status,
+or a documented result field means updating the manual, or the test fails.
 
 ## Communication Language
 
