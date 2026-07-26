@@ -1,0 +1,21 @@
+# Build artifacts (make build → dist/)
+dist/
+
+# Local Claude Code workspace
+.claude/
+
+# Test / coverage artifacts
+*.out
+coverage.*
+go.work
+go.work.sum
+
+# Local per-user config (holds no secrets, but is machine-local)
+config.toml
+
+# macOS
+.DS_Store
+
+# Editor/IDE
+.idea/
+.vscode/

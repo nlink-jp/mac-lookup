@@ -1,0 +1,34 @@
+# mac-lookup configuration (optional).
+# Copy to ~/.config/mac-lookup/config.toml to override defaults.
+# No credentials are needed — the IEEE registry files are public.
+
+[ieee]
+# Base URL of the IEEE Registration Authority public registry downloads.
+# Individual registries are fetched as <base>/oui/oui.csv, <base>/oui28/mam.csv,
+# <base>/oui36/oui36.csv, <base>/iab/iab.csv and <base>/cid/cid.csv.
+# The MAC_LOOKUP_BASE_URL environment variable overrides this value.
+# base_url = "https://standards-oui.ieee.org"
+
+# How old the cached registry may be before `lookup` auto-refetches it. Floored
+# at 6 hours out of fetch etiquette — IEEE regenerates the files about once a
+# day, so polling more often only wastes their bandwidth.
+# The MAC_LOOKUP_TTL_MINUTES environment variable overrides this value.
+# ttl_minutes = 1440
+
+# Whether `lookup` auto-refetches a stale registry. Disable to keep lookups
+# strictly offline (or pass --no-update per call).
+# Env: MAC_LOOKUP_AUTO_UPDATE.
+# auto_update = true
+
+[store]
+# Where the parsed registry is cached (optional).
+# Default: ~/.local/share/mac-lookup/ouidb.json
+# The MAC_LOOKUP_STORE environment variable overrides this value.
+# path = "~/.local/share/mac-lookup/ouidb.json"
+
+[workspace]
+# Default output directory for file-mediated MCP results (search_vendor writes
+# its matches there when the caller does not pass workspace_root).
+# Default: ~/.local/state/mac-lookup/workspace
+# The MAC_LOOKUP_WORKSPACE environment variable overrides this value.
+# path = "~/.local/state/mac-lookup/workspace"
