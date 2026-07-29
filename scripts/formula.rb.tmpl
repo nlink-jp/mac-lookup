@@ -16,6 +16,11 @@ class @CLASS@ < Formula
     bin.install "@NAME@"
   end
 
+  # The tool MUST answer `--version`, not only a `version` subcommand: without
+  # the flag it exits non-zero, `shell_output` raises, and `brew test` fails —
+  # while `brew install` still succeeds, so the breakage only surfaces once the
+  # tool is in the tap. With cobra, `rootCmd.Version = Version` provides the
+  # flag; keep its output identical to the subcommand's and pin both in a test.
   test do
     assert_match version.to_s, shell_output("#{bin}/@NAME@ --version")
   end
