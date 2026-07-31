@@ -22,6 +22,8 @@
 #   BREW_TAP_DIR    local homebrew-tap checkout                (required unless --print)
 #   BREW_APP        <Name>.app                                 (cask only)
 #   BREW_BUNDLE_ID  bundle id for the zap stanza               (cask only)
+#   BREW_MACOS_FLOOR  minimum macOS symbol for the cask's
+#                     `depends_on macos:` (default :big_sur)   (cask only)
 #   BREW_REPO       GitHub repo slug, if it differs from the tool/binary name
 #                   parsed from the asset (e.g. repo markdown-viewer ships mdv);
 #                   default: the parsed name.
@@ -102,9 +104,14 @@ fi
 
 APP="${BREW_APP:-}"
 BUNDLE_ID="${BREW_BUNDLE_ID:-}"
+MACOS_FLOOR="${BREW_MACOS_FLOOR:-:big_sur}"
 if [ "$KIND" = cask ]; then
   [ -n "$APP" ] || die "BREW_APP (<Name>.app) is required for casks"
   [ -n "$BUNDLE_ID" ] || die "BREW_BUNDLE_ID is required for casks"
+  case "$MACOS_FLOOR" in
+    :*) ;;
+    *) die "BREW_MACOS_FLOOR must be a Homebrew macOS symbol like :big_sur (got '$MACOS_FLOOR')" ;;
+  esac
 fi
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -125,6 +132,7 @@ render() {
     -e "s|@SHA256@|$(esc_repl "$SHA256")|g" \
     -e "s|@APP@|$(esc_repl "$APP")|g" \
     -e "s|@BUNDLE_ID@|$(esc_repl "$BUNDLE_ID")|g" \
+    -e "s|@MACOS_FLOOR@|$(esc_repl "$MACOS_FLOOR")|g" \
     "$TPL"
 }
 
