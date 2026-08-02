@@ -24,6 +24,11 @@
 #   BREW_BUNDLE_ID  bundle id for the zap stanza               (cask only)
 #   BREW_MACOS_FLOOR  minimum macOS symbol for the cask's
 #                     `depends_on macos:` (default :big_sur)   (cask only)
+#   BREW_BINARY     command name to symlink onto the user's PATH from the
+#                   .app's embedded CLI, e.g. zip-porter          (cask only,
+#                   optional; the executable is <APP>/Contents/MacOS/<exe>)
+#   BREW_BINARY_EXE executable name inside Contents/MacOS if it differs
+#                   from the .app's own name                    (cask only)
 #   BREW_REPO       GitHub repo slug, if it differs from the tool/binary name
 #                   parsed from the asset (e.g. repo markdown-viewer ships mdv);
 #                   default: the parsed name.
@@ -105,6 +110,17 @@ fi
 APP="${BREW_APP:-}"
 BUNDLE_ID="${BREW_BUNDLE_ID:-}"
 MACOS_FLOOR="${BREW_MACOS_FLOOR:-:big_sur}"
+# GUI apps that double as a CLI (single-binary subcommand routing) expose it
+# through a cask `binary` symlink; without one the command is buried inside
+# the bundle and effectively unusable.
+# A sentinel rather than an empty value: the placeholder sits on its own
+# line, so leaving it blank would leave a stray blank line behind. The
+# sentinel line is deleted after substitution instead.
+BINARY_STANZA="@DROP_LINE@"
+if [ "$KIND" = cask ] && [ -n "${BREW_BINARY:-}" ]; then
+  BINARY_EXE="${BREW_BINARY_EXE:-${APP%.app}}"
+  BINARY_STANZA="  binary \"#{appdir}/$APP/Contents/MacOS/$BINARY_EXE\", target: \"$BREW_BINARY\""
+fi
 if [ "$KIND" = cask ]; then
   [ -n "$APP" ] || die "BREW_APP (<Name>.app) is required for casks"
   [ -n "$BUNDLE_ID" ] || die "BREW_BUNDLE_ID is required for casks"
@@ -133,7 +149,8 @@ render() {
     -e "s|@APP@|$(esc_repl "$APP")|g" \
     -e "s|@BUNDLE_ID@|$(esc_repl "$BUNDLE_ID")|g" \
     -e "s|@MACOS_FLOOR@|$(esc_repl "$MACOS_FLOOR")|g" \
-    "$TPL"
+    -e "s|@BINARY_STANZA@|$(esc_repl "$BINARY_STANZA")|g" \
+    "$TPL" | sed -e '/^@DROP_LINE@$/d'
 }
 
 if [ "$PRINT" -eq 1 ]; then
