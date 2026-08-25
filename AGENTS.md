@@ -20,6 +20,7 @@ make test       # go test -race -cover ./...
 make check      # lint + test + build-all
 make build-all  # cross-compile linux/{amd64,arm64}, darwin/arm64, windows/amd64
 make package    # archive + Developer ID sign + notarize (darwin arm64)
+make verify-release  # gate: .notarized marker + freshness (run before upload)
 make brew       # generate the tap formula from the packaged zip
 ```
 

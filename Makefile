@@ -17,7 +17,7 @@ PLATFORMS := \
 	darwin/arm64 \
 	windows/amd64
 
-.PHONY: build build-all test lint check package clean help
+.PHONY: build build-all test lint check package verify-release clean help
 
 ## build: Build for the current platform
 build:
@@ -62,6 +62,22 @@ package: build-all
 		rm -rf $$stage; \
 	done
 	@scripts/notarize-darwin.sh dist/$(BINARY)-$(VERSION)-darwin-arm64.zip "$(NOTARY_PROFILE)"
+
+## verify-release: refuse to release an un-notarized zip (marker gate)
+verify-release:
+	@test -f "dist/$(BINARY)-$(VERSION)-darwin-arm64.zip.notarized" || { \
+		echo "verify-release: FAIL — $(BINARY)-$(VERSION)-darwin-arm64.zip has no notarization marker."; \
+		echo "  make package must end with '[notarize] ...: Accepted'. Do not upload this zip."; \
+		exit 1; }
+	@test "dist/$(BINARY)-$(VERSION)-darwin-arm64.zip.notarized" -nt "dist/$(BINARY)-$(VERSION)-darwin-arm64.zip" || { \
+		echo "verify-release: FAIL — the zip was rebuilt after its marker (re-run make package)."; \
+		exit 1; }
+	@tmp=$$(mktemp -d) && \
+		unzip -oq "dist/$(BINARY)-$(VERSION)-darwin-arm64.zip" -d "$$tmp" && \
+		"$$tmp/$(BINARY)" --version && \
+		spctl -a -vv -t install "$$tmp/$(BINARY)" 2>&1 | head -2 || true; \
+		rm -rf "$$tmp"
+	@echo "verify-release: OK ($(VERSION), notarization marker present)"
 
 ## clean: Remove build artifacts
 clean:

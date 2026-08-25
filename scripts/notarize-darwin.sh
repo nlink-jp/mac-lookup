@@ -20,6 +20,10 @@
 #     as an expired Apple Developer agreement (HTTP 403).
 #   - On submission failure, prints the Apple-returned log and exits
 #     non-zero so a release pipeline can stop.
+#   - On Acceptance a `<zip>.notarized` marker file is written beside
+#     the zip; `make verify-release` gates on it (any earlier marker is
+#     cleared at startup), so the skip paths above cannot reach a
+#     release unnoticed.
 #
 # Why we don't staple: notarisation of bare CLI binaries inside a
 # zip cannot be stapled — `stapler staple` only works on app
@@ -42,6 +46,10 @@ if [ ! -f "$ZIP" ]; then
   exit 0
 fi
 
+# Clear any marker from a previous run first, so no exit path below can
+# leave a stale "notarized" verdict standing next to a rebuilt zip.
+rm -f "$ZIP.notarized"
+
 # Probe the keychain profile cheaply (notarytool has no dedicated
 # "is profile present" command). `history` returns quickly without
 # uploading anything, so we use it as a liveness check. Capture its
@@ -53,17 +61,27 @@ if ! PROBE_OUT=$(xcrun notarytool history --keychain-profile "$PROFILE" 2>&1); t
   echo "[notarize] Cannot use keychain profile '$PROFILE'; $ZIP will ship un-notarised." >&2
   echo "[notarize] notarytool reported:" >&2
   printf '%s\n' "$PROBE_OUT" | sed 's/^/[notarize]   /' >&2
-  case "$PROBE_OUT" in
-    *403*|*[Aa]greement*)
-      echo "[notarize] --> Apple Developer agreement issue, not a missing key." >&2
-      echo "[notarize]     Sign the updated agreement at https://developer.apple.com/account/" >&2
-      echo "[notarize]     (Account Holder), wait a few minutes, then retry." >&2
-      ;;
-    *)
-      echo "[notarize] --> If the profile is not set up on this machine, run once:" >&2
-      echo "[notarize]       xcrun notarytool store-credentials $PROFILE --key <p8> --key-id <id> --issuer <uuid>" >&2
-      ;;
-  esac
+  # The credential lives in the data-protection keychain, which is
+  # unreadable while the screen is locked — the profile then *looks*
+  # deleted (measured 2026-08: an unattended release batch died this
+  # way mid-run). Diagnose that first; re-registering is never the fix.
+  if ioreg -n Root -d1 2>/dev/null | grep -q '"IOConsoleLocked" = Yes'; then
+    echo "[notarize] --> The screen is locked: data-protection keychain items are" >&2
+    echo "[notarize]     unavailable while locked. Unlock the screen and re-run;" >&2
+    echo "[notarize]     the credential is intact." >&2
+  else
+    case "$PROBE_OUT" in
+      *403*|*[Aa]greement*)
+        echo "[notarize] --> Apple Developer agreement issue, not a missing key." >&2
+        echo "[notarize]     Sign the updated agreement at https://developer.apple.com/account/" >&2
+        echo "[notarize]     (Account Holder), wait a few minutes, then retry." >&2
+        ;;
+      *)
+        echo "[notarize] --> If the profile is not set up on this machine, run once:" >&2
+        echo "[notarize]       xcrun notarytool store-credentials $PROFILE --key <p8> --key-id <id> --issuer <uuid>" >&2
+        ;;
+    esac
+  fi
   exit 0
 fi
 
@@ -82,6 +100,14 @@ echo "$SUBMISSION_OUT"
 # even if Apple shifts exit-code semantics in a future release.
 if printf '%s\n' "$SUBMISSION_OUT" | grep -q 'status: Accepted'; then
   echo "[notarize] $ZIP: Accepted"
+  # Success marker for verify-release. The fail-open above (shipping
+  # un-notarised when the profile probe fails) exists for contributors
+  # without credentials — but on the release machine it once shipped an
+  # un-notarised zip while verify-release stayed green, because the
+  # probe failed on an updated Apple agreement and nothing downstream
+  # checked. verify-release now requires this marker, so the fail-open
+  # path can no longer reach a release unnoticed.
+  touch "$ZIP.notarized"
   exit 0
 fi
 
