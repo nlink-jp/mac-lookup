@@ -108,7 +108,7 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, rawURL string, cond Conditional
 	}
 	switch resp.StatusCode {
 	case http.StatusNotModified:
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		return &Response{NotModified: true, ETag: cond.ETag, LastModified: cond.LastModified}, nil
 	case http.StatusOK:
 		return &Response{
@@ -119,7 +119,7 @@ func (f *HTTPFetcher) Fetch(ctx context.Context, rawURL string, cond Conditional
 	}
 
 	body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
-	resp.Body.Close()
+	_ = resp.Body.Close()
 	if resp.StatusCode == http.StatusTeapot {
 		// The origin answers browser-shaped User-Agents this way. Seeing it here
 		// means something rewrote the request header, so say so plainly rather

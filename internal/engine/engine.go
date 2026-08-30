@@ -188,7 +188,7 @@ func (e *Engine) fetchRegistry(ctx context.Context, rf ieee.RegistryFile, url st
 			return nil, registrySource{}, 0, err
 		}
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	got, skipped, err := ouidb.ParseCSV(resp.Body, rf.Registry)
 	if err != nil {
@@ -245,7 +245,9 @@ func (e *Engine) writeStore(db *ouidb.DB) error {
 		return err
 	}
 	tmpName := tmp.Name()
-	defer os.Remove(tmpName) // no-op after a successful rename
+	// No-op after a successful rename; a failure here leaves a temp file,
+	// which is not worth failing an otherwise successful update over.
+	defer func() { _ = os.Remove(tmpName) }()
 
 	err = ouidb.Serialize(tmp, db)
 	if cerr := tmp.Close(); err == nil {

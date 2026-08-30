@@ -44,7 +44,7 @@ func TestFetchSendsHonestUserAgent(t *testing.T) {
 		gotUA = r.Header.Get("User-Agent")
 		w.Header().Set("ETag", `"abc"`)
 		w.Header().Set("Last-Modified", "Sun, 26 Jul 2026 00:01:23 GMT")
-		io.WriteString(w, "Registry,Assignment,Organization Name,Organization Address\n")
+		_, _ = io.WriteString(w, "Registry,Assignment,Organization Name,Organization Address\n")
 	}))
 	defer srv.Close()
 
@@ -52,7 +52,7 @@ func TestFetchSendsHonestUserAgent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Fetch returned error: %v", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if gotUA != UserAgent {
 		t.Errorf("User-Agent = %q, want %q", gotUA, UserAgent)
@@ -115,7 +115,7 @@ func TestFetchTeapotExplainsItself(t *testing.T) {
 func TestFetchOtherErrors(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		io.WriteString(w, "no such registry")
+		_, _ = io.WriteString(w, "no such registry")
 	}))
 	defer srv.Close()
 
