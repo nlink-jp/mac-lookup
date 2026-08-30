@@ -94,9 +94,8 @@ Reading `status`:
 | `offset` | integer | 0-based index of the first match to return (default 0) |
 
 **Returned inline, a page at a time.** A large registrant holds hundreds of
-assignments, so the page is bounded by `limit` and `offset` walks the rest. This
-server writes no files, owns no output directory and takes no path argument, so
-it works against a client that has no filesystem of its own.
+assignments, so `limit` bounds the page and `offset` walks the rest. No file is
+written and no path comes back.
 
 | Field | Meaning |
 |---|---|
