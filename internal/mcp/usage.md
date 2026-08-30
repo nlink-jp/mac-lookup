@@ -90,18 +90,20 @@ Reading `status`:
 | Argument | Type | Notes |
 |---|---|---|
 | `query` | string | **Required.** Substring of the registrant name, case-insensitive |
-| `workspace_root` | string | Writable directory for the results file; defaults to the configured workspace |
-| `limit` | integer | Maximum rows to write; `0` means no limit |
+| `limit` | integer | Matches per page (default 50); `0` means all of them |
+| `offset` | integer | 0-based index of the first match to return (default 0) |
 
-**File-mediated.** A large vendor holds hundreds of assignments, so the rows
-are written as JSON Lines and only the path is returned:
+**Returned inline, a page at a time.** A large registrant holds hundreds of
+assignments, so the page is bounded by `limit` and `offset` walks the rest. This
+server writes no files, owns no output directory and takes no path argument, so
+it works against a client that has no filesystem of its own.
 
 | Field | Meaning |
 |---|---|
-| `matches_file` | Path to read; one assignment per line |
-| `total` | Matches found |
-| `written` | Rows actually written |
-| `truncated` | Present when `limit` cut the list short |
+| `matches` | This page, one object per assignment |
+| `total` | Matches found, in all |
+| `offset` / `limit` | What this page covers |
+| `has_more` | More matches exist past this page — re-request with `offset` advanced by `limit` |
 
 ### `update_db`
 
@@ -125,7 +127,7 @@ and `age_hours`. No arguments.
 | `invalid address: expected 12 hex digits ...` | Input is not a MAC or a valid prefix | Check for a truncated paste; prefixes must be 24, 28, or 36 bits |
 | `provide 'mac' ... or 'macs' ...` | No address argument | Pass `mac` or `macs` |
 | `provide 'query' ...` | Empty `search_vendor` query | Pass a registrant substring |
-| `no workspace available` | `search_vendor` has nowhere to write | Pass `workspace_root` |
+| `search_vendor` response too large to hold | `limit` was too large for your context (or `0`) | Re-request with a smaller `limit` and page with `offset` |
 | `update failed: ... HTTP 418 ...` | Something rewrote the User-Agent to look like a browser | The IEEE origin rejects browser-like agents; the tool's own agent is correct — check for an intercepting proxy |
 | `update failed: MA-L is required` | The base registry could not be fetched and nothing was cached | Check connectivity, then retry `update_db` |
 

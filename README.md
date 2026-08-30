@@ -110,9 +110,10 @@ IEEE regenerates the files about once a day). Disable with `--no-update` or
 `search_vendor`, `db_status`, `update_db` and `get_usage`. Call `get_usage`
 first — it returns the full tool reference and error-recovery table.
 
-`search_vendor` is file-mediated: a popular vendor holds hundreds of prefixes,
-so the result is written under the caller's `workspace_root` and returned as a
-`matches_file` path.
+`search_vendor` returns its matches inline, a page at a time: a popular vendor
+holds hundreds of prefixes, so `limit` (default 50) bounds the page and `offset`
+walks the rest, with `has_more` saying whether any are left. The server writes no
+files and takes no path argument.
 
 ### JSON output
 

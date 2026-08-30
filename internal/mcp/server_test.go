@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,7 +25,6 @@ func newServer(t *testing.T, seeded bool) (*engine.Engine, string) {
 	cfg := &config.Config{
 		BaseURL:   "https://registry.invalid",
 		StorePath: filepath.Join(dir, "ouidb.json"),
-		Workspace: filepath.Join(dir, "workspace"),
 		TTL:       config.DefaultTTL,
 	}
 	if seeded {
@@ -300,51 +300,72 @@ func TestLookupMACRequiresAnArgument(t *testing.T) {
 	}
 }
 
-func TestSearchVendorIsFileMediated(t *testing.T) {
-	e, dir := newServer(t, true)
-	root := filepath.Join(dir, "ws")
-	text, isErr := callText(t, rpc(t, e, call(ToolSearchVendor, `{"query":"nokia","workspace_root":"`+root+`"}`))[0])
+func TestSearchVendorReturnsMatchesInline(t *testing.T) {
+	e, _ := newServer(t, true)
+	text, isErr := callText(t, rpc(t, e, call(ToolSearchVendor, `{"query":"nokia"}`))[0])
 	if isErr {
 		t.Fatalf("isError = true: %s", text)
 	}
 	var out struct {
-		Total       int    `json:"total"`
-		Written     int    `json:"written"`
-		MatchesFile string `json:"matches_file"`
+		Total   int              `json:"total"`
+		HasMore bool             `json:"has_more"`
+		Matches []map[string]any `json:"matches"`
 	}
 	if err := json.Unmarshal([]byte(text), &out); err != nil {
 		t.Fatalf("result is not the documented object: %v (%s)", err, text)
 	}
-	if out.Total != 1 || out.Written != 1 {
-		t.Errorf("total=%d written=%d, want 1/1", out.Total, out.Written)
+	if out.Total != 1 || len(out.Matches) != 1 || out.HasMore {
+		t.Errorf("total=%d matches=%d has_more=%v, want 1/1/false", out.Total, len(out.Matches), out.HasMore)
 	}
-	if !strings.HasPrefix(out.MatchesFile, root) {
-		t.Errorf("matches_file %q is outside the requested workspace", out.MatchesFile)
+	if out.Matches[0]["organization"] != "Nokia Shanghai Bell Co., Ltd." {
+		t.Errorf("match lacks the organization: %v", out.Matches[0])
 	}
-	// The point of file mediation is that the rows really are on disk.
-	body, err := os.ReadFile(out.MatchesFile)
-	if err != nil {
-		t.Fatalf("matches_file is not readable: %v", err)
-	}
-	if !strings.Contains(string(body), "Nokia") {
-		t.Errorf("matches_file lacks the match: %s", body)
+	// No path may survive: the caller may have no filesystem to read it with.
+	for _, gone := range []string{"matches_file", "workspace", "truncated"} {
+		if strings.Contains(text, gone) {
+			t.Errorf("result still carries %q — file mediation was not removed: %s", gone, text)
+		}
 	}
 }
 
-func TestSearchVendorReportsTruncation(t *testing.T) {
-	e, dir := newServer(t, true)
-	// A truncated list must never read as the complete answer.
-	text, _ := callText(t, rpc(t, e, call(ToolSearchVendor, `{"query":"e","limit":1,"workspace_root":"`+filepath.Join(dir, "ws")+`"}`))[0])
-	var out struct {
-		Total     int  `json:"total"`
-		Written   int  `json:"written"`
-		Truncated bool `json:"truncated"`
+// Paging is what replaced the file: every match must be reachable, and a page
+// must never read as the complete answer.
+func TestSearchVendorPagingReachesEveryMatch(t *testing.T) {
+	e, _ := newServer(t, true)
+	first, _ := callText(t, rpc(t, e, call(ToolSearchVendor, `{"query":"e","limit":1}`))[0])
+	var page struct {
+		Total   int              `json:"total"`
+		HasMore bool             `json:"has_more"`
+		Matches []map[string]any `json:"matches"`
 	}
-	if err := json.Unmarshal([]byte(text), &out); err != nil {
+	if err := json.Unmarshal([]byte(first), &page); err != nil {
 		t.Fatal(err)
 	}
-	if out.Written != 1 || out.Total <= 1 || !out.Truncated {
-		t.Errorf("written=%d total=%d truncated=%v", out.Written, out.Total, out.Truncated)
+	if page.Total <= 1 || len(page.Matches) != 1 || !page.HasMore {
+		t.Fatalf("first page: total=%d matches=%d has_more=%v", page.Total, len(page.Matches), page.HasMore)
+	}
+	total := page.Total
+
+	seen := map[string]bool{}
+	for offset := 0; offset <= total; offset++ {
+		req := fmt.Sprintf(`{"query":"e","limit":1,"offset":%d}`, offset)
+		text, _ := callText(t, rpc(t, e, call(ToolSearchVendor, req))[0])
+		var p struct {
+			HasMore bool             `json:"has_more"`
+			Matches []map[string]any `json:"matches"`
+		}
+		if err := json.Unmarshal([]byte(text), &p); err != nil {
+			t.Fatalf("offset %d: %v (%s)", offset, err, text)
+		}
+		for _, m := range p.Matches {
+			seen[m["assignment"].(string)] = true
+		}
+		if offset == total && p.HasMore {
+			t.Errorf("has_more is still true past the end (offset %d)", offset)
+		}
+	}
+	if len(seen) != total {
+		t.Errorf("paging reached %d of %d matches", len(seen), total)
 	}
 }
 
@@ -375,24 +396,5 @@ func TestDBStatus(t *testing.T) {
 	}
 	if out.Registries["MA-S"] != 1 {
 		t.Errorf("registries = %v", out.Registries)
-	}
-}
-
-func TestSlug(t *testing.T) {
-	tests := []struct{ in, want string }{
-		{"Apple", "apple"},
-		{"Nokia Shanghai Bell Co., Ltd.", "nokia-shanghai-bell-co---ltd"},
-		// A query must never be able to escape the workspace directory.
-		{"../../etc/passwd", "etc-passwd"},
-		{"...", "query"},
-	}
-	for _, tt := range tests {
-		got := slug(tt.in)
-		if got != tt.want {
-			t.Errorf("slug(%q) = %q, want %q", tt.in, got, tt.want)
-		}
-		if strings.ContainsAny(got, `/\.`) {
-			t.Errorf("slug(%q) = %q contains a path character", tt.in, got)
-		}
 	}
 }

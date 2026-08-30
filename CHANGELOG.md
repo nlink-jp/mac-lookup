@@ -3,6 +3,31 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+
+- **`search_vendor` returns its matches inline.** The MCP tool no longer writes
+  a JSON Lines file: matches come back in `matches`, bounded by `limit`
+  (default 50, was "no limit") and walked with the new `offset`, with `has_more`
+  saying whether any are left. `total` is still the true count.
+
+  Migration: replace a `workspace_root` call plus a file read with a loop that
+  advances `offset` by `limit` while `has_more` is true.
+
+### Added
+
+- `search_vendor` takes `offset`, and every result carries `offset`, `limit` and
+  `has_more`.
+
+### Removed
+
+- `search_vendor`'s `workspace_root` argument and the `matches_file` /
+  `written` / `truncated` / `note` / `format` result fields.
+- The `[workspace]` config section and `MAC_LOOKUP_WORKSPACE`. The server has no
+  output directory: it touches no filesystem, so it works unchanged against a
+  client that has none.
+
 ## [0.1.0] - 2026-07-26
 
 ### Added

@@ -58,8 +58,6 @@ auto_update = false
 [store]
 path = "/var/lib/mac-lookup/db.json"
 
-[workspace]
-path = "/var/tmp/mac-lookup"
 `
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatal(err)
@@ -79,9 +77,6 @@ path = "/var/tmp/mac-lookup"
 	}
 	if cfg.StorePath != "/var/lib/mac-lookup/db.json" {
 		t.Errorf("StorePath = %q", cfg.StorePath)
-	}
-	if cfg.Workspace != "/var/tmp/mac-lookup" {
-		t.Errorf("Workspace = %q", cfg.Workspace)
 	}
 }
 

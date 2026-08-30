@@ -5,9 +5,6 @@ import (
 	_ "embed"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/nlink-jp/mac-lookup/internal/engine"
@@ -28,7 +25,7 @@ const (
 	ToolLookupMAC = "lookup_mac"
 	// ToolSearchVendor reverse-resolves a vendor name to its assignments. A
 	// popular vendor holds hundreds of prefixes, so the result is file-mediated:
-	// the caller passes workspace_root and reads the returned matches_file.
+	// the caller pages through the matches with limit + offset.
 	ToolSearchVendor = "search_vendor"
 	// ToolDBStatus reports the cached registry's freshness and size.
 	ToolDBStatus = "db_status"
@@ -72,13 +69,13 @@ func (s *server) toolsList() any {
 			{
 				"name": ToolSearchVendor,
 				"description": "Find the IEEE assignments whose registrant name contains a substring (case-insensitive). " +
-					"File-mediated: results are written as JSON Lines under workspace_root and the path is returned as matches_file, because a large vendor holds hundreds of prefixes.",
+					"Matches are returned inline, one page at a time: a large registrant holds hundreds of prefixes, so limit bounds the page (default 50) and offset walks the rest. has_more says whether any are left.",
 				"inputSchema": map[string]any{
 					"type": "object",
 					"properties": map[string]any{
-						"query":          map[string]any{"type": "string", "description": "Substring of the registrant name, e.g. \"Apple\"."},
-						"workspace_root": map[string]any{"type": "string", "description": "Writable directory for the results file. Defaults to the configured workspace."},
-						"limit":          map[string]any{"type": "integer", "description": "Maximum rows to write (0 = no limit)."},
+						"query":  map[string]any{"type": "string", "description": "Substring of the registrant name, e.g. \"Apple\"."},
+						"limit":  map[string]any{"type": "integer", "description": "Matches per page (default 50). 0 means all of them."},
+						"offset": map[string]any{"type": "integer", "description": "0-based index of the first match to return (default 0)."},
 					},
 					"required": []string{"query"},
 				},
@@ -229,11 +226,16 @@ func (s *server) toolLookupMAC(args json.RawMessage) toolResult {
 	return jsonResult(entries)
 }
 
+// defaultVendorPageSize bounds one page of matches. A broad substring ("tech")
+// matches hundreds of registrants, and an unbounded default would put all of
+// them in a model's context on the first, most naive call.
+const defaultVendorPageSize = 50
+
 func (s *server) toolSearchVendor(args json.RawMessage) toolResult {
 	var a struct {
-		Query         string `json:"query"`
-		WorkspaceRoot string `json:"workspace_root"`
-		Limit         int    `json:"limit"`
+		Query  string `json:"query"`
+		Limit  *int   `json:"limit"`
+		Offset *int   `json:"offset"`
 	}
 	_ = json.Unmarshal(args, &a)
 	query := strings.TrimSpace(a.Query)
@@ -245,76 +247,47 @@ func (s *server) toolSearchVendor(args json.RawMessage) toolResult {
 		return dbErrorResult(err)
 	}
 
-	root := a.WorkspaceRoot
-	if root == "" {
-		root = s.e.Cfg.Workspace
+	limit := defaultVendorPageSize
+	if a.Limit != nil && *a.Limit >= 0 {
+		limit = *a.Limit
 	}
-	if root == "" {
-		return textResult(true, "no workspace available: pass 'workspace_root' (a writable directory) or configure [workspace] path")
-	}
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		return textResult(true, "create workspace "+root+": "+err.Error())
+	offset := 0
+	if a.Offset != nil && *a.Offset > 0 {
+		offset = *a.Offset
 	}
 
-	matches, total := engine.SearchVendor(db, query, a.Limit)
-	path := filepath.Join(root, "search-"+slug(query)+".jsonl")
-	f, err := os.Create(path)
-	if err != nil {
-		return textResult(true, "write results: "+err.Error())
+	// Search unbounded and page here: the registries are a local file of a few
+	// tens of thousands of rows, so the whole match set is cheap to hold, and
+	// `total` has to be the true count for `has_more` to mean anything.
+	all, total := engine.SearchVendor(db, query, 0)
+	matches := make([]map[string]any, 0, limit)
+	end := len(all)
+	if limit > 0 && offset+limit < end {
+		end = offset + limit
 	}
-	enc := json.NewEncoder(f)
-	for _, m := range matches {
-		if err := enc.Encode(map[string]any{
-			"registry":     m.Registry,
-			"assignment":   m.Assignment,
-			"prefix":       macaddr.Canonical(m.Assignment),
-			"prefix_bits":  m.PrefixBits,
-			"organization": m.Organization,
-			"address":      m.Address,
-		}); err != nil {
-			f.Close()
-			return textResult(true, "write results: "+err.Error())
+	if offset < len(all) {
+		for _, m := range all[offset:end] {
+			matches = append(matches, map[string]any{
+				"registry":     m.Registry,
+				"assignment":   m.Assignment,
+				"prefix":       macaddr.Canonical(m.Assignment),
+				"prefix_bits":  m.PrefixBits,
+				"organization": m.Organization,
+				"address":      m.Address,
+			})
 		}
-	}
-	if err := f.Close(); err != nil {
-		return textResult(true, "write results: "+err.Error())
+	} else {
+		end = offset
 	}
 
-	out := map[string]any{
-		"query":        query,
-		"total":        total,
-		"written":      len(matches),
-		"matches_file": path,
-		"format":       "JSON Lines: one assignment per line",
-	}
-	// A silently truncated list would read as the complete answer.
-	if total > len(matches) {
-		out["truncated"] = true
-		out["note"] = fmt.Sprintf("%d of %d matches written; raise 'limit' to get the rest", len(matches), total)
-	}
-	return jsonResult(out)
-}
-
-// slug makes a query safe to use as a filename component without colliding with
-// path separators or hidden files.
-func slug(q string) string {
-	var b strings.Builder
-	for _, r := range strings.ToLower(q) {
-		switch {
-		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
-			b.WriteRune(r)
-		default:
-			b.WriteByte('-')
-		}
-	}
-	s := strings.Trim(b.String(), "-")
-	if s == "" {
-		s = "query"
-	}
-	if len(s) > 60 {
-		s = s[:60]
-	}
-	return s
+	return jsonResult(map[string]any{
+		"query":    query,
+		"total":    total,
+		"offset":   offset,
+		"limit":    limit,
+		"has_more": end < len(all),
+		"matches":  matches,
+	})
 }
 
 func (s *server) toolUpdateDB(ctx context.Context) toolResult {

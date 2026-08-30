@@ -117,9 +117,11 @@ All optional; every one overrides the config file. There are **no credentials**.
   mode is tri-state `0`/`1`/`2`; multiple addresses, stdin, or `--json` switch
   to batch mode (per-address results on stdout, error-only exit code). Don't
   "normalize" a single-address no-name result to `0`.
-- **`search_vendor` is file-mediated.** Unlike `lookup_mac`, a vendor search can
-  return hundreds of rows, so results are written under `workspace_root` and
-  returned as a path.
+- **`search_vendor` is paged, not file-mediated.** Unlike `lookup_mac`, a vendor
+  search can return hundreds of rows, so it returns one page inline
+  (`limit`/`offset`/`has_more`, `total` = the true count). It used to write the
+  rows under a caller-supplied `workspace_root`, which made the server depend on
+  the client owning a filesystem it could name. Do not reintroduce that.
 
 ## Data sources
 

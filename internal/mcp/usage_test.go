@@ -36,7 +36,7 @@ func TestUsageDocumentsResultFields(t *testing.T) {
 	// Every field a caller is expected to branch on.
 	for _, field := range []string{
 		"vendor_lookup_applicable", "administration", "prefix_bits",
-		"matches_file", "workspace_root", "not_modified",
+		"matches", "has_more", "offset", "not_modified",
 		"served_from_cache_after_failure",
 	} {
 		if !strings.Contains(usageMarkdown, field) {

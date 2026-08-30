@@ -39,7 +39,6 @@ const EnvPrefix = "MAC_LOOKUP_"
 type Config struct {
 	BaseURL    string        // IEEE registry download origin
 	StorePath  string        // path to the local cached registry store (JSON)
-	Workspace  string        // default output directory for file-mediated MCP results
 	TTL        time.Duration // auto-refetch threshold (floored at MinTTL)
 	AutoUpdate bool          // auto-refetch on lookup when older than TTL
 }
@@ -52,7 +51,6 @@ func Load(configPath, storeOverride, baseURLOverride string) (*Config, error) {
 	cfg := &Config{
 		BaseURL:    ieee.DefaultBaseURL,
 		StorePath:  DefaultStorePath(),
-		Workspace:  DefaultWorkspaceDir(),
 		TTL:        DefaultTTL,
 		AutoUpdate: true,
 	}
@@ -81,9 +79,6 @@ func Load(configPath, storeOverride, baseURLOverride string) (*Config, error) {
 	}
 	if v := os.Getenv(EnvPrefix + "STORE"); v != "" {
 		cfg.StorePath = expandHome(v)
-	}
-	if v := os.Getenv(EnvPrefix + "WORKSPACE"); v != "" {
-		cfg.Workspace = expandHome(v)
 	}
 	if v := os.Getenv(EnvPrefix + "TTL_MINUTES"); v != "" {
 		d, err := parseTTLMinutes(v)
@@ -137,11 +132,6 @@ func applySections(cfg *Config, sections map[string]map[string]string) error {
 			cfg.StorePath = expandHome(v)
 		}
 	}
-	if w := sections["workspace"]; w != nil {
-		if v := w["path"]; v != "" {
-			cfg.Workspace = expandHome(v)
-		}
-	}
 	return nil
 }
 
@@ -192,19 +182,6 @@ func DefaultStorePath() string {
 		return "ouidb.json"
 	}
 	return filepath.Join(home, ".local", "share", "mac-lookup", "ouidb.json")
-}
-
-// DefaultWorkspaceDir returns the default MCP output directory, honoring
-// XDG_STATE_HOME (file-mediated results are reproducible, transient state).
-func DefaultWorkspaceDir() string {
-	if x := os.Getenv("XDG_STATE_HOME"); x != "" {
-		return filepath.Join(x, "mac-lookup", "workspace")
-	}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(home, ".local", "state", "mac-lookup", "workspace")
 }
 
 func expandHome(p string) string {

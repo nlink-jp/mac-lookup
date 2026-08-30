@@ -25,10 +25,3 @@
 # Default: ~/.local/share/mac-lookup/ouidb.json
 # The MAC_LOOKUP_STORE environment variable overrides this value.
 # path = "~/.local/share/mac-lookup/ouidb.json"
-
-[workspace]
-# Default output directory for file-mediated MCP results (search_vendor writes
-# its matches there when the caller does not pass workspace_root).
-# Default: ~/.local/state/mac-lookup/workspace
-# The MAC_LOOKUP_WORKSPACE environment variable overrides this value.
-# path = "~/.local/state/mac-lookup/workspace"
