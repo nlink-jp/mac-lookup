@@ -210,3 +210,19 @@ func TestNoCredentialFieldExists(t *testing.T) {
 		}
 	}
 }
+
+// ParseFloat reads "NaN" and "Inf", and NaN passes any range check written as
+// "reject what is below the floor". A number is accepted from inside its range.
+func TestNumbersThatAreNotNumbersAreRefused(t *testing.T) {
+	for _, in := range []string{"NaN", "nan", "Inf", "+Inf", "-Inf", "1e300", "-1"} {
+		if d, err := parseTTLMinutes(in); err == nil {
+			t.Errorf("parseTTLMinutes(%q) = %v, want a refusal", in, d)
+		}
+	}
+	if d, err := parseTTLMinutes("1.5"); err != nil || d <= 0 {
+		t.Errorf("parseTTLMinutes(\"1.5\") = %v, %v", d, err)
+	}
+	if d, err := parseTTLMinutes("0"); err != nil || d != 0 {
+		t.Errorf("parseTTLMinutes(\"0\") = %v, %v; 0 is a value here", d, err)
+	}
+}

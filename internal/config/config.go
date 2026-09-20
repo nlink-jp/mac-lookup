@@ -135,14 +135,21 @@ func applySections(cfg *Config, sections map[string]map[string]string) error {
 	return nil
 }
 
+// The range is stated from the inside. ParseFloat also reads "NaN" and "Inf",
+// and NaN fails every comparison — so a check written as "reject what is below
+// the floor" lets it through, and the Duration it becomes is whatever the
+// platform makes of NaN. The ceiling keeps a number like 1e300 from
+// overflowing a Duration into something negative.
+const maxTTLMinutes = 366 * 24 * 60 // a year
+
 // parseTTLMinutes parses a non-negative minutes value into a Duration.
 func parseTTLMinutes(v string) (time.Duration, error) {
 	m, err := strconv.ParseFloat(v, 64)
 	if err != nil {
 		return 0, fmt.Errorf("%q is not a number", v)
 	}
-	if m < 0 {
-		return 0, fmt.Errorf("must not be negative")
+	if !(m >= 0 && m <= maxTTLMinutes) {
+		return 0, fmt.Errorf("must be a number from 0 to %d", maxTTLMinutes)
 	}
 	return time.Duration(m * float64(time.Minute)), nil
 }
