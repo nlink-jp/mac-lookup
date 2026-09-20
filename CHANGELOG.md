@@ -3,15 +3,14 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.2.1] - 2026-09-21
 
 ### Fixed
 
 - A number in the config file was accepted when it was not one. `NaN` passed the
   range check — it fails every comparison, so "reject what is below the floor"
   lets it through — and `Inf` or `1e300` overflowed the duration it became.
-  Ranges are now stated from the inside, with a ceiling. Unreleased: the next
-  release carries it.
+  Ranges are now stated from the inside, with a ceiling.
 
 ## [0.2.0] - 2026-08-31
 
