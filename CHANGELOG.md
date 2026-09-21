@@ -3,6 +3,18 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Fixed
+
+- **`make verify-release` now fails closed.** Its last block chained unzip, the
+  packaged binary's `--version` and `spctl` with `&&` and ended the whole chain
+  in `|| true`, so a zip that did not unpack or a binary that did not run exited
+  0 and the upload proceeded. Each step is now judged on its own, the packaged
+  binary's `--version` must contain the tag being released, and only the
+  informational `spctl` line may be ignored. Matches the org template
+  (CONVENTIONS.md §Code Signing → Verifying a release).
+
 ## [0.3.0] - 2026-09-21
 
 ### Changed

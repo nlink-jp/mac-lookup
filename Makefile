@@ -63,7 +63,9 @@ package: build-all
 	done
 	@scripts/notarize-darwin.sh dist/$(BINARY)-$(VERSION)-darwin-arm64.zip "$(NOTARY_PROFILE)"
 
-## verify-release: refuse to release an un-notarized zip (marker gate)
+## verify-release: refuse to release a zip that is un-notarized, stale, does
+## not unpack, does not run, or holds a build from another tag. Every step
+## fails closed; only the spctl line is informational.
 verify-release:
 	@test -f "dist/$(BINARY)-$(VERSION)-darwin-arm64.zip.notarized" || { \
 		echo "verify-release: FAIL — $(BINARY)-$(VERSION)-darwin-arm64.zip has no notarization marker."; \
@@ -72,12 +74,22 @@ verify-release:
 	@test "dist/$(BINARY)-$(VERSION)-darwin-arm64.zip.notarized" -nt "dist/$(BINARY)-$(VERSION)-darwin-arm64.zip" || { \
 		echo "verify-release: FAIL — the zip was rebuilt after its marker (re-run make package)."; \
 		exit 1; }
-	@tmp=$$(mktemp -d) && \
-		unzip -oq "dist/$(BINARY)-$(VERSION)-darwin-arm64.zip" -d "$$tmp" && \
-		"$$tmp/$(BINARY)" --version && \
-		spctl -a -vv -t install "$$tmp/$(BINARY)" 2>&1 | head -2 || true; \
-		rm -rf "$$tmp"
-	@echo "verify-release: OK ($(VERSION), notarization marker present)"
+	@tmp=$$(mktemp -d); rc=0; \
+		if ! unzip -oq "dist/$(BINARY)-$(VERSION)-darwin-arm64.zip" -d "$$tmp"; then \
+			echo "verify-release: FAIL — the zip does not unpack. Do not upload it."; rc=1; \
+		elif ! out=$$("$$tmp/$(BINARY)" --version 2>&1); then \
+			echo "verify-release: FAIL — the packaged binary does not run:"; \
+			echo "  $$out"; rc=1; \
+		elif ! printf '%s\n' "$$out" | grep -qF "$(VERSION)"; then \
+			echo "verify-release: FAIL — the packaged binary reports \"$$out\", not $(VERSION)."; \
+			echo "  The zip holds a build from another tag (re-run make package)."; rc=1; \
+		else \
+			echo "  $$out"; \
+			spctl -a -vv -t install "$$tmp/$(BINARY)" 2>&1 | head -2 || true; \
+		fi; \
+		rm -rf "$$tmp"; \
+		exit $$rc
+	@echo "verify-release: OK ($(VERSION), notarized, unpacks, runs, reports its version)"
 
 ## clean: Remove build artifacts
 clean:
