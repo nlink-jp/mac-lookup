@@ -70,9 +70,9 @@ func TestUsageDocumentsTheTeapot(t *testing.T) {
 // rule stated only in prose is re-decided by whoever adds the next tool.
 //
 // The flag is the declared half of the contract — what a schema-checking client
-// refuses before the call. This server still decodes arguments with a plain
-// json.Unmarshal, so an unknown argument that arrives anyway is ignored rather
-// than refused; see AGENTS.md.
+// refuses before the call. The enforcing half is decodeArgs
+// (DisallowUnknownFields), which refuses an unknown argument that arrives
+// anyway; TestUnknownArgumentIsRefusedByName covers it.
 func TestEveryToolSchemaIsValidAndClosed(t *testing.T) {
 	s := &server{}
 	b, err := json.Marshal(s.toolsList())

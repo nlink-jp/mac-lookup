@@ -118,10 +118,22 @@ field before trusting a fresh-looking `generated` timestamp.
 Reports `generated`, `assignments`, per-registry counts, `sources`, `stale`,
 and `age_hours`. No arguments.
 
+## Arguments are strict
+
+Every tool refuses an argument it does not declare, naming it:
+`arguments: json: unknown field "offest"`. A wrong-typed argument is refused the
+same way. Nothing runs before the arguments decode, so a rejected call reads no
+registry and downloads nothing — fix the name or the type and call again. This
+is the enforcing half of the closed schemas (org ADR-021 §4); a misspelt
+`offset` used to make every page of a broad `search_vendor` come back as the
+first one.
+
 ## Error recovery
 
 | Message | Cause | Do this |
 |---|---|---|
+| `arguments: json: unknown field "…"` | An argument name this tool does not declare — usually a typo | Fix the spelling and call again; the named field is the offending one |
+| `arguments: json: cannot unmarshal …` | An argument of the wrong JSON type (`mac`/`query` are strings, `macs` an array, `limit`/`offset` integers) | Check the argument's type in the tool list above and call again |
 | `no local IEEE registry cache` | Nothing downloaded yet | Call `update_db` once |
 | `invalid address: expected 12 hex digits ...` | Input is not a MAC or a valid prefix | Check for a truncated paste; prefixes must be 24, 28, or 36 bits |
 | `provide 'mac' ... or 'macs' ...` | No address argument | Pass `mac` or `macs` |

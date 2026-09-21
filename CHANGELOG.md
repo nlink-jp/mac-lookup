@@ -5,6 +5,31 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- **An MCP tool call carrying an argument the tool does not declare now fails
+  instead of being quietly ignored.** This is a deliberate behaviour change,
+  required by org ADR-021 §4. Until now a misspelt argument was dropped and the
+  call ran without it, which was worst on `search_vendor`: send `offest`
+  instead of `offset` and every page of a broad registrant search comes back as
+  the first 50 matches, so a loop that walks `has_more` repeats page one forever
+  and never sees the rest. Every tool — including `get_usage`, `update_db` and
+  `db_status`, which take no arguments — now decodes with
+  `DisallowUnknownFields` and refuses the call, naming the offending field:
+  `arguments: json: unknown field "offest"`.
+
+  A malformed argument object is refused for the same reason. The decode error
+  used to be discarded along with the unknown field, so `{"macs": "286FB9…"}` —
+  one address where an array was expected — ran as if no address had been
+  supplied and came back with "provide 'mac' … or 'macs'", an answer that
+  contradicted the request. It now reports the type mismatch.
+
+  Nothing runs before the arguments decode, so a rejected call reads no
+  registry and downloads nothing. Omitting `arguments`, or sending `{}` or
+  `null`, still means "no arguments" and is not an error. There is no
+  compatibility shim: an argument name this server does not declare has never
+  meant anything, so the only fix is to correct it.
+
 ### Fixed
 
 - **Every MCP tool input schema is closed.** The schemas omitted
@@ -13,9 +38,7 @@ All notable changes to this project are documented here. The format follows
   single `obj()` helper that sets the flag, and an arch test fails if a tool's
   schema omits it — org ADR-021 §10 requires the test as well as the flag,
   because a rule stated only in prose is re-decided by whoever adds the next
-  tool. The server's own argument decoding is unchanged and still lenient: it
-  does not use `DisallowUnknownFields`, so an unknown argument that reaches it
-  is ignored rather than refused.
+  tool.
 
 ## [0.2.1] - 2026-09-21
 

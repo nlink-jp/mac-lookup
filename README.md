@@ -110,6 +110,13 @@ IEEE regenerates the files about once a day). Disable with `--no-update` or
 `search_vendor`, `db_status`, `update_db` and `get_usage`. Call `get_usage`
 first — it returns the full tool reference and error-recovery table.
 
+**Arguments are checked strictly.** A call carrying an argument a tool does not
+declare fails, naming it — `arguments: json: unknown field "offest"` — rather
+than running without it. A misspelt `offset` used to make every page of a broad
+`search_vendor` come back as the first one. Wrong-typed arguments are refused
+the same way, and nothing runs before the arguments decode. Omitting arguments
+entirely still means "none".
+
 `search_vendor` returns its matches inline, a page at a time: a popular vendor
 holds hundreds of prefixes, so `limit` (default 50) bounds the page and `offset`
 walks the rest, with `has_more` saying whether any are left. The server writes no
