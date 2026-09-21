@@ -122,6 +122,14 @@ All optional; every one overrides the config file. There are **no credentials**.
   (`limit`/`offset`/`has_more`, `total` = the true count). It used to write the
   rows under a caller-supplied `workspace_root`, which made the server depend on
   the client owning a filesystem it could name. Do not reintroduce that.
+- **Tool schemas are closed; the decoder is not.** Every `inputSchema` is built
+  by `obj()` in `internal/mcp/tools.go`, which sets `additionalProperties: false`
+  (org ADR-021 §10), and `TestEveryToolSchemaIsValidAndClosed` fails if a tool
+  escapes it — so build a new schema with `obj()`, not a map literal. That flag
+  is only the *declared* half: argument decoding still uses a plain
+  `json.Unmarshal`, so an unknown argument from a client that does not validate
+  the schema is silently ignored rather than refused. ADR-021 pairs the flag with
+  `json.Decoder.DisallowUnknownFields`; that half is not implemented here.
 
 ## Data sources
 

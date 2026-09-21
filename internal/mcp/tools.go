@@ -43,6 +43,17 @@ const Instructions = "mac-lookup resolves a MAC address or BSSID to its manufact
 	"Read vendor_lookup_applicable before reading vendor: when it is false the address is broadcast, multicast, or locally administered (a randomized MAC or virtual NIC), and no manufacturer exists to find — that is an answer, not a failed lookup. " +
 	"Call get_usage for the full tool reference and error-recovery table."
 
+// obj builds a tool's input schema. Every schema goes through here so that
+// org ADR-021 §10's `additionalProperties: false` is set once instead of being
+// remembered per tool — the next tool added gets the closed schema for free.
+func obj(props map[string]any, required ...string) map[string]any {
+	s := map[string]any{"type": "object", "properties": props, "additionalProperties": false}
+	if len(required) > 0 {
+		s["required"] = required
+	}
+	return s
+}
+
 // toolsList returns the advertised tool set with JSON Schema for each input.
 func (s *server) toolsList() any {
 	strArray := map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
@@ -51,44 +62,37 @@ func (s *server) toolsList() any {
 			{
 				"name":        ToolGetUsage,
 				"description": "Return this server's operating manual (markdown): the tools, the offline registry lifecycle, how to read a result, and the error-recovery table. Call it once before first use.",
-				"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+				"inputSchema": obj(map[string]any{}),
 			},
 			{
 				"name": ToolLookupMAC,
 				"description": "Resolve one or more MAC addresses, BSSIDs, or registry prefixes, answered offline from the cached IEEE registries. " +
 					"Returns the address classification (cast, administration, well_known) and, when applicable, the matched assignment. " +
 					"Check vendor_lookup_applicable: when false there is no manufacturer to find.",
-				"inputSchema": map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"mac":  map[string]any{"type": "string", "description": "A single MAC address, BSSID, or 24/28/36-bit prefix. Colon, hyphen, dot, or bare hex."},
-						"macs": strArray,
-					},
-				},
+				"inputSchema": obj(map[string]any{
+					"mac":  map[string]any{"type": "string", "description": "A single MAC address, BSSID, or 24/28/36-bit prefix. Colon, hyphen, dot, or bare hex."},
+					"macs": strArray,
+				}),
 			},
 			{
 				"name": ToolSearchVendor,
 				"description": "Find the IEEE assignments whose registrant name contains a substring (case-insensitive). " +
 					"Matches are returned inline, one page at a time: a large registrant holds hundreds of prefixes, so limit bounds the page (default 50) and offset walks the rest. has_more says whether any are left.",
-				"inputSchema": map[string]any{
-					"type": "object",
-					"properties": map[string]any{
-						"query":  map[string]any{"type": "string", "description": "Substring of the registrant name, e.g. \"Apple\"."},
-						"limit":  map[string]any{"type": "integer", "description": "Matches per page (default 50). 0 means all of them."},
-						"offset": map[string]any{"type": "integer", "description": "0-based index of the first match to return (default 0)."},
-					},
-					"required": []string{"query"},
-				},
+				"inputSchema": obj(map[string]any{
+					"query":  map[string]any{"type": "string", "description": "Substring of the registrant name, e.g. \"Apple\"."},
+					"limit":  map[string]any{"type": "integer", "description": "Matches per page (default 50). 0 means all of them."},
+					"offset": map[string]any{"type": "integer", "description": "0-based index of the first match to return (default 0)."},
+				}, "query"),
 			},
 			{
 				"name":        ToolUpdateDB,
 				"description": "Download the five IEEE Registration Authority registry files (MA-L, MA-M, MA-S, IAB, CID) and rebuild the local store. Conditional, so unchanged files cost nothing. No credentials required.",
-				"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+				"inputSchema": obj(map[string]any{}),
 			},
 			{
 				"name":        ToolDBStatus,
 				"description": "Report the cached registry's generation time, assignment count per registry, sources, and whether it is stale.",
-				"inputSchema": map[string]any{"type": "object", "properties": map[string]any{}},
+				"inputSchema": obj(map[string]any{}),
 			},
 		},
 	}
