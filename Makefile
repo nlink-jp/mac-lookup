@@ -57,15 +57,16 @@ package: build-all
 		cp "$(BINARY)-$$os-$$arch$$ext" "$$stage/$(BINARY)$$ext"; \
 		cp ../README.md ../LICENSE $$stage/; \
 		base="$(BINARY)-$(VERSION)-$$os-$$arch"; \
-		if [ "$$os" = linux ]; then ( cd $$stage && tar -czf "../$$base.tar.gz" * ); \
+		if [ "$$os" = linux ]; then ( cd $$stage && COPYFILE_DISABLE=1 tar --no-xattrs -czf "../$$base.tar.gz" * ); \
 		else ( cd $$stage && zip -q "../$$base.zip" * ); fi; \
 		rm -rf $$stage; \
 	done
 	@scripts/notarize-darwin.sh dist/$(BINARY)-$(VERSION)-darwin-arm64.zip "$(NOTARY_PROFILE)"
 
 ## verify-release: refuse to release a zip that is un-notarized, stale, does
-## not unpack, does not run, or holds a build from another tag. Every step
-## fails closed; only the spctl line is informational.
+## not unpack, does not run, or holds a build from another tag, and a linux
+## archive that carries macOS metadata or anything but its canonical files.
+## Every step fails closed; only the spctl line is informational.
 verify-release:
 	@test -f "dist/$(BINARY)-$(VERSION)-darwin-arm64.zip.notarized" || { \
 		echo "verify-release: FAIL — $(BINARY)-$(VERSION)-darwin-arm64.zip has no notarization marker."; \
@@ -89,7 +90,24 @@ verify-release:
 		fi; \
 		rm -rf "$$tmp"; \
 		exit $$rc
-	@echo "verify-release: OK ($(VERSION), notarized, unpacks, runs, reports its version)"
+	@for p in $(PLATFORMS); do os=$${p%/*}; arch=$${p#*/}; \
+		[ "$$os" = linux ] || continue; \
+		f="dist/$(BINARY)-$(VERSION)-$$os-$$arch.tar.gz"; \
+		names=$$(tar --options 'tar:!mac-ext' -tzf "$$f") || { echo "verify-release: FAIL — $$f does not list."; exit 1; }; \
+		if printf '%s\n' "$$names" | grep -qE '(^|/)(\._|PaxHeader|__MACOSX)'; then \
+			echo "verify-release: FAIL — $$f carries macOS metadata entries."; \
+			echo "  macOS tar writes ._ members unless COPYFILE_DISABLE=1 is set, and lists them only with !mac-ext."; \
+			exit 1; fi; \
+		if gzip -dc "$$f" | grep -qa -e 'LIBARCHIVE.xattr' -e 'SCHILY.xattr'; then \
+			echo "verify-release: FAIL — $$f carries extended attributes as pax headers."; \
+			echo "  macOS tar writes them unless called with --no-xattrs; COPYFILE_DISABLE alone does not."; \
+			exit 1; fi; \
+		got=$$(printf '%s\n' "$$names" | LC_ALL=C sort | tr '\n' ' '); \
+		want=$$(printf '%s\n' "$(BINARY)" README.md LICENSE | LC_ALL=C sort | tr '\n' ' '); \
+		if [ "$$got" != "$$want" ]; then \
+			echo "verify-release: FAIL — $$f holds $$got; expected $$want"; exit 1; fi; \
+	done
+	@echo "verify-release: OK ($(VERSION), notarized, unpacks, runs, reports its version, clean linux archives)"
 
 ## clean: Remove build artifacts
 clean:
