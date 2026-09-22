@@ -98,8 +98,10 @@ verify-release:
 			echo "verify-release: FAIL — $$f carries macOS metadata entries."; \
 			echo "  macOS tar writes ._ members unless COPYFILE_DISABLE=1 is set, and lists them only with !mac-ext."; \
 			exit 1; fi; \
-		if gzip -dc "$$f" | grep -qa -e 'LIBARCHIVE.xattr' -e 'SCHILY.xattr'; then \
-			echo "verify-release: FAIL — $$f carries extended attributes as pax headers."; \
+		xh=$$(python3 -c 'import sys, tarfile; print(" ".join(m.name for m in tarfile.open(sys.argv[1]) if any(k.startswith(("LIBARCHIVE.xattr.", "SCHILY.xattr.")) for k in m.pax_headers)))' "$$f") || { \
+			echo "verify-release: FAIL — $$f cannot be read for its pax headers (python3 tarfile)."; exit 1; }; \
+		if [ -n "$$xh" ]; then \
+			echo "verify-release: FAIL — $$f carries extended attributes as pax headers ($$xh)."; \
 			echo "  macOS tar writes them unless called with --no-xattrs; COPYFILE_DISABLE alone does not."; \
 			exit 1; fi; \
 		got=$$(printf '%s\n' "$$names" | LC_ALL=C sort | tr '\n' ' '); \
