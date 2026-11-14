@@ -20,6 +20,7 @@ make test       # go test -race -cover ./...
 make check      # lint + test + build-all
 make build-all  # cross-compile linux/{amd64,arm64}, darwin/arm64, windows/amd64
 make package    # archive + Developer ID sign + notarize (darwin arm64)
+make vuln            # govulncheck over the build; `make package` runs it first and stops on a finding
 make verify-release  # gate: notarized, fresh, runs at this version, clean linux archives (run before upload)
 make brew       # generate the tap formula from the packaged zip
 ```
