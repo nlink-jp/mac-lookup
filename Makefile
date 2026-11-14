@@ -45,12 +45,17 @@ lint:
 ## check: Run lint + test + build-all
 check: lint test build-all
 
-## vuln: known vulnerabilities in the modules and the standard library this
-## build uses (govulncheck). `package` depends on it, so a release cannot be
-## built past a finding. It needs the network, and its database changes under
-## an unchanged tree: a finding can appear without a commit.
+## vuln: known vulnerabilities in the modules and the standard library each
+## release build uses (govulncheck) — once per platform in PLATFORMS, with the
+## environment build-all builds it with, because an advisory in an OS-only
+## package shows only in that OS's build. `package` depends on it, so a release
+## cannot be built past a finding. It needs the network, and its database
+## changes under an unchanged tree: a finding can appear without a commit.
 vuln:
-	govulncheck ./...
+	@for p in $(PLATFORMS); do os=$${p%/*}; arch=$${p#*/}; \
+		echo "govulncheck $$os/$$arch"; \
+		CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch govulncheck ./... || exit 1; \
+	done
 
 ## package: Build all platforms, archive with version suffix (zip for
 ## darwin/windows, tar.gz for linux), bundle the canonical binary +
