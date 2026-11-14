@@ -24,7 +24,7 @@ make verify-release  # gate: notarized, fresh, runs at this version, clean linux
 make brew       # generate the tap formula from the packaged zip
 ```
 
-Go 1.25+. **No external dependencies** — standard library only.
+Go 1.27.4+. **No external dependencies** — standard library only.
 
 ## Layout
 

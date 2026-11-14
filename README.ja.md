@@ -34,7 +34,7 @@ membership 判定）に対する L2 側の姉妹品。
 brew install nlink-jp/tap/mac-lookup
 ```
 
-ソースからビルドする場合（Go 1.25+、外部依存なし）:
+ソースからビルドする場合（Go 1.27.4+、外部依存なし）:
 
 ```bash
 make build
