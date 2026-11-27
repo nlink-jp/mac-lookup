@@ -5,6 +5,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-28
+
 ### Added
 
 - **The MCP server speaks both eras of the protocol** (ADR-0001): the
