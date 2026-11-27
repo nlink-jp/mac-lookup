@@ -169,6 +169,11 @@ func (e *Engine) fetchRegistry(ctx context.Context, rf ieee.RegistryFile, url st
 
 	resp, err := e.Fetcher.Fetch(ctx, url, cond)
 	if err != nil {
+		// A cancelled update stops: falling back to the cached registry would
+		// carry on and rewrite the store the caller asked to abandon.
+		if ctx.Err() != nil {
+			return nil, registrySource{}, 0, ctx.Err()
+		}
 		if cached, src, ok := cachedRegistry(prev, rf.Registry, url); ok {
 			// Keep what we had: stale entries beat a hole in the database. The
 			// error travels with them so the caller can say the data is stale
