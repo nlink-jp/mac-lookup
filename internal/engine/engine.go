@@ -111,6 +111,12 @@ func (e *Engine) Update(ctx context.Context) (UpdateResult, error) {
 	for _, rf := range ieee.RegistryFiles {
 		url := ieee.URLFor(e.Cfg.BaseURL, rf.Path)
 		got, src, skipped, err := e.fetchRegistry(ctx, rf, url, prev)
+		// A cancellation stops the whole update at any registry, a download
+		// or a body cut short alike: carrying on would rewrite the store
+		// without the registries still to come.
+		if ctx.Err() != nil {
+			return UpdateResult{}, ctx.Err()
+		}
 		if err != nil {
 			if rf.Registry == ouidb.RegistryMAL {
 				return UpdateResult{}, fmt.Errorf("%s is required: %w", rf.Registry, err)
@@ -133,6 +139,9 @@ func (e *Engine) Update(ctx context.Context) (UpdateResult, error) {
 		res.Skipped += skipped
 	}
 
+	if err := ctx.Err(); err != nil {
+		return UpdateResult{}, err
+	}
 	generatedUnix := e.now().Unix()
 	db := ouidb.New(entries, sources, generatedUnix)
 	if err := e.writeStore(db); err != nil {
