@@ -35,7 +35,7 @@ touches a network the target can observe.
 brew install nlink-jp/tap/mac-lookup
 ```
 
-Or build from source (Go 1.27.4+, no external dependencies):
+Or build from source (Go 1.27.4+, no third-party dependencies):
 
 ```bash
 make build

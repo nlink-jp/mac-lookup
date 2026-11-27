@@ -39,7 +39,7 @@ Follow the common policy (nlink-jp/mcp's `docs/en/server-migration.md`, v0.3.0) 
 
 - An argument spelt in another case (`{"MAC": ...}`) was accepted as the declared one; it is now refused by name.
 - SIGINT or SIGTERM ended the MCP server by killing the process; a signal now ends it through its context, so its cleanup runs.
-- A cancelled `update_db` fell back to the cached registries as if the download had failed, and rewrote the store; a cancellation now stops the update.
+- A cancelled `update_db` fell back to the cached registries as if the download had failed, and rewrote the store; a cancellation at any registry, in the download or part-way through the body, now stops the update.
 
 ## Consequences
 
