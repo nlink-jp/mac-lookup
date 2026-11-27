@@ -13,6 +13,7 @@ import (
 	"github.com/nlink-jp/mac-lookup/internal/config"
 	"github.com/nlink-jp/mac-lookup/internal/engine"
 	"github.com/nlink-jp/mac-lookup/internal/ouidb"
+	"github.com/nlink-jp/mcp/client"
 )
 
 // --- harness ----------------------------------------------------------------
@@ -113,14 +114,6 @@ func TestInitializeAdvertisesUsage(t *testing.T) {
 		if !strings.Contains(instructions, want) {
 			t.Errorf("instructions omit %q", want)
 		}
-	}
-}
-
-func TestNotificationsGetNoReply(t *testing.T) {
-	e, _ := newServer(t, false)
-	got := rpc(t, e, `{"jsonrpc":"2.0","method":"notifications/initialized"}`)
-	if len(got) != 0 {
-		t.Errorf("got %d responses to a notification, want 0", len(got))
 	}
 }
 
@@ -371,4 +364,16 @@ func TestAgainstTheProbeClients(t *testing.T) {
 	probeMatrix(t, func(ctx context.Context, in io.Reader, w io.Writer) error {
 		return Serve(ctx, e, "test", in, w)
 	})
+}
+
+// The client that opens the server receives the instructions — the hint that
+// points it at get_usage — whichever era it opens in.
+func TestOpeningCarriesTheInstructions(t *testing.T) {
+	e, _ := newServer(t, true)
+	cl := openWith(t, func(ctx context.Context, in io.Reader, w io.Writer) error {
+		return Serve(ctx, e, "test", in, w)
+	}, client.Options{})
+	if got := cl.Instructions(); got != Instructions {
+		t.Errorf("instructions = %q, want the package's Instructions", got)
+	}
 }

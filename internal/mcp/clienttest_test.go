@@ -70,10 +70,11 @@ func openWith(t *testing.T, serve serveFunc, opts client.Options) *client.Client
 // serveOverClient replays newline-separated JSON-RPC requests — the tests'
 // own request lines — through nlink-jp/mcp's client against the server, and
 // returns the answers in the JSON-RPC shape the tests read. initialize is
-// answered from what the client learnt when it opened the server; a
-// notification gets nothing. Protocol details (parse errors, unknown methods,
-// version negotiation) are the module's to answer and are tested there; a
-// request for anything else fails the test.
+// answered from what the client learnt when it opened the server.
+// Notifications, ping and the other protocol details (parse errors, unknown
+// methods, version negotiation) are the module's to answer and are tested
+// there: a line asking for one fails the test rather than being answered
+// here, where a test of it would prove nothing.
 func serveOverClient(t *testing.T, serve serveFunc, input string) *bytes.Buffer {
 	t.Helper()
 	cl := openWith(t, serve, client.Options{})
@@ -94,20 +95,22 @@ func serveOverClient(t *testing.T, serve serveFunc, input string) *bytes.Buffer 
 			t.Fatalf("not a request: %s", line)
 		}
 		if len(req.ID) == 0 || string(req.ID) == "null" {
-			continue // a notification: nothing to answer
+			t.Fatalf("a notification (%s) is the protocol module's; it is tested there", req.Method)
 		}
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		answer := map[string]any{"jsonrpc": "2.0", "id": req.ID}
 		switch req.Method {
 		case "initialize":
-			answer["result"] = map[string]any{
+			// Only what the server sent: the instructions are absent when the
+			// server sent none.
+			result := map[string]any{
 				"protocolVersion": cl.Version(),
 				"serverInfo":      cl.Server(),
-				"instructions":    cl.Instructions(),
-				"capabilities":    map[string]any{"tools": map[string]any{}},
 			}
-		case "ping":
-			answer["result"] = map[string]any{}
+			if s := cl.Instructions(); s != "" {
+				result["instructions"] = s
+			}
+			answer["result"] = result
 		case "tools/list":
 			list, err := cl.ListTools(ctx)
 			if err != nil {
