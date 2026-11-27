@@ -29,12 +29,13 @@ internal/ieee/          Fetcher interface + HTTPFetcher (public endpoints, condi
 internal/config/        Sectioned-TOML subset + env/flag resolution (no credentials)
 internal/engine/        LoadDB / Update / Lookup / SearchVendor / EnsureFresh / IsStale
 internal/app/           Dispatch + lookup/search/update/status/mcp; --json, batch, grep-style exit codes
-internal/mcp/           Zero-dep stdio JSON-RPC 2.0 server + tools (lookup_mac/search_vendor/db_status/update_db/get_usage)
+internal/mcp/           MCP tools on nlink-jp/mcp's server.ToolServer (both eras; ADR-0001) (lookup_mac/search_vendor/db_status/update_db/get_usage)
 ```
 
 Core logic takes io.Reader/io.Writer and injected dependencies for testability
-(the fetcher is an interface, mocked in tests). **No external dependencies —
-standard library only.** See [docs/en/architecture.md](docs/en/architecture.md)
+(the fetcher is an interface, mocked in tests). **No third-party dependencies** — the standard library, plus nlink-jp
+modules written on the same rule (`github.com/nlink-jp/mcp` for the MCP
+protocol, organization ADR-030; ADR-0001). See [docs/en/architecture.md](docs/en/architecture.md)
 for the "why".
 
 ## Key conventions

@@ -25,7 +25,9 @@ make verify-release  # gate: notarized, fresh, runs at this version, clean linux
 make brew       # generate the tap formula from the packaged zip
 ```
 
-Go 1.27.4+. **No external dependencies** — standard library only.
+Go 1.27.4+. **No third-party dependencies** — the standard library, plus nlink-jp
+modules written on the same rule (`github.com/nlink-jp/mcp` for the MCP
+protocol, organization ADR-030; ADR-0001).
 
 ## Layout
 
@@ -40,7 +42,7 @@ internal/ieee/          Fetcher interface + HTTPFetcher.
 internal/config/        Sectioned-TOML subset parser + env/flag resolution (no secrets).
 internal/engine/        Ties config+fetcher+store: LoadDB, Update, Lookup, SearchVendor, EnsureFresh, IsStale.
 internal/app/           CLI: dispatch, lookup/search/update/status/mcp, output; grep-style + batch/JSON.
-internal/mcp/           Zero-dep stdio JSON-RPC 2.0 server + tools.
+internal/mcp/           MCP tools on nlink-jp/mcp's server.ToolServer (both eras; ADR-0001)
   tools.go              Tool-name constants.
 scripts/                codesign-darwin.sh, notarize-darwin.sh, gen-brew.sh, formula.rb.tmpl, release-brew.mk.
 docs/{en,ja}/           RFP and architecture notes.
@@ -79,6 +81,15 @@ All optional; every one overrides the config file. There are **no credentials**.
   `Registry,Assignment,Organization Name,Organization Address` (UTF-8).
 
 ## Gotchas
+
+- **The MCP protocol is nlink-jp/mcp's** (ADR-0001, organization ADR-030 §6).
+  `internal/mcp` never handles `initialize` or `server/discover` itself: `Serve`
+  registers `toolsList()` on a `server.ToolServer` and each handler calls
+  `toolsCall`. Tests replay their requests through the module's `client`
+  (`clienttest_test.go`) and run its three probe clients; do not write the
+  handshake by hand in a test. Before initialize, `tools/*` is -32602 — the
+  module's rule, not a defect. Argument names are matched exactly
+  (`decodeArgs`, `argNames`).
 
 - **A locally administered address has no vendor, and that is an answer.**
   U/L bit set means a randomized MAC, a virtual NIC, or a container interface.

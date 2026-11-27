@@ -5,6 +5,39 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- **The MCP server speaks both eras of the protocol** (ADR-0001): the
+  2026-07-28 revision, whose clients probe with `server/discover`, as well as
+  the earlier `initialize` handshake (2025-11-25, 2025-06-18, 2024-11-05). The
+  protocol layer is now the organization's shared module nlink-jp/mcp
+  (organization ADR-030); the tools, their arguments and their results are
+  unchanged.
+
+### Changed
+
+- Protocol details now follow the module:
+  - `tools/list`, `tools/call` and unknown methods before `initialize` are
+    refused with -32602 (an unknown method was -32601);
+  - `arguments` that is not an object is refused with -32602 before reaching
+    the tool;
+  - a request with `"id":null`, or without `"jsonrpc":"2.0"`, gets -32600;
+  - messages are read one per line (up to 16 MiB) instead of as a JSON stream;
+  - a parse error or a batch no longer ends the server (a batch gets -32600);
+  - a panic in a tool is answered -32603 and the server goes on (it crashed);
+  - up to 256 calls wait behind a running one; more are refused with -32603
+    "server busy";
+  - `notifications/cancelled` now cancels the call A cancelled `update_db` stops its download and writes nothing; the store is written to a temporary file and renamed (a test pins it).
+
+  Requests piped in are still all answered before the server exits at end of
+  input.
+
+### Fixed
+
+- An argument spelt in another case (`{"MAC": ...}`) was accepted as the declared one; it is now refused by name.
+- SIGINT or SIGTERM ended the MCP server by killing the process; a signal now ends it through its context, so its cleanup runs.
+- A cancelled `update_db` fell back to the cached registries as if the download had failed, and rewrote the store; a cancellation now stops the update.
+
 ## [0.3.2] - 2026-11-27
 
 ### Changed

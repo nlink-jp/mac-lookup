@@ -106,6 +106,11 @@ IEEE regenerates the files about once a day). Disable with `--no-update` or
 
 ## MCP server
 
+The server speaks both eras of the protocol: the 2026-07-28 revision (clients
+that probe with `server/discover`) and the earlier `initialize` handshake
+(2025-11-25, 2025-06-18, 2024-11-05). Requests piped in are all answered before
+it exits at end of input.
+
 `mac-lookup mcp` speaks JSON-RPC 2.0 over stdio and exposes `lookup_mac`,
 `search_vendor`, `db_status`, `update_db` and `get_usage`. Call `get_usage`
 first — it returns the full tool reference and error-recovery table.
