@@ -31,7 +31,7 @@ Follow the common policy (nlink-jp/mcp's `docs/en/server-migration.md`, v0.3.0) 
    are -32602; `arguments` that is not an object is -32602; `"id":null` and a request without `"jsonrpc"` are -32600;
    framing changes from `json.Decoder` to one message per line (16 MiB); parse errors and batches no longer end the
    server; a panic is answered -32603; up to 256 calls wait, more get -32603 "server busy".
-5. **Cancellation (policy §5)**: `notifications/cancelled` now cancels the call's ctx. A cancelled `update_db` stops its download and writes nothing; the store is written to a temporary file and renamed (a test pins it)
+5. **Cancellation (policy §5)**: `notifications/cancelled` now cancels the call's ctx. A cancelled `update_db` stops its download and writes nothing; the store is written to a temporary file and renamed (a test pins it).
 6. **Signals (policy §2)**: the `mcp` subcommand passes `Serve` a ctx cancelled by SIGINT and SIGTERM.
 7. **Dependency and version**: `github.com/nlink-jp/mcp` is added; minor (v0.4.0).
 
