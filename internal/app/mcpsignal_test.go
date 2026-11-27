@@ -4,12 +4,14 @@ import (
 	"context"
 	"io"
 	"os"
+	"slices"
+	"syscall"
 	"testing"
 	"time"
 )
 
 // SIGINT and SIGTERM end the MCP server through its ctx, even while stdin is
-// open (server-migration §2). Served on context.Background(), a signal
+// open (server-migration §2); both are registered. Served on context.Background(), a signal
 // killed the process instead, and this waits in vain.
 func TestASignalEndsTheMCPServer(t *testing.T) {
 	home := t.TempDir()
@@ -19,7 +21,9 @@ func TestASignalEndsTheMCPServer(t *testing.T) {
 	defer func(orig func(context.Context, ...os.Signal) (context.Context, context.CancelFunc)) {
 		notifyContext = orig
 	}(notifyContext)
-	notifyContext = func(parent context.Context, _ ...os.Signal) (context.Context, context.CancelFunc) {
+	var registered []os.Signal
+	notifyContext = func(parent context.Context, sigs ...os.Signal) (context.Context, context.CancelFunc) {
+		registered = sigs
 		ctx, cancel := context.WithCancel(parent)
 		go func() { time.Sleep(100 * time.Millisecond); cancel() }() // the signal arrives
 		return ctx, cancel
@@ -37,5 +41,10 @@ func TestASignalEndsTheMCPServer(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("the MCP server did not end on the signal")
+	}
+	for _, want := range []os.Signal{os.Interrupt, syscall.SIGTERM} {
+		if !slices.Contains(registered, want) {
+			t.Errorf("%v is not among the signals that end the server: %v", want, registered)
+		}
 	}
 }
