@@ -36,8 +36,8 @@ const (
 	ToolGetUsage = "get_usage"
 )
 
-// Instructions is the initialize-time hint (surfaced via the MCP `instructions`
-// field) that makes get_usage discoverable and steers clients away from the one
+// Instructions is the hint a client receives when it opens the server (the MCP
+// `instructions` field, in initialize or server/discover) that makes get_usage discoverable and steers clients away from the one
 // mistake that matters most here.
 const Instructions = "mac-lookup resolves a MAC address or BSSID to its manufacturer and to the kind of address it is, fully offline from a locally cached copy of the IEEE registries. " +
 	"Call db_status first; if there is no cache, call update_db (no credentials needed). " +
@@ -82,81 +82,75 @@ func decodeArgs(raw json.RawMessage, into any) error {
 	return nil
 }
 
+
 // toolsList returns the advertised tool set with JSON Schema for each input.
-func (s *server) toolsList() any {
+func (s *server) toolsList() []map[string]any {
 	strArray := map[string]any{"type": "array", "items": map[string]any{"type": "string"}}
-	return map[string]any{
-		"tools": []map[string]any{
-			{
-				"name":        ToolGetUsage,
-				"description": "Return this server's operating manual (markdown): the tools, the offline registry lifecycle, how to read a result, and the error-recovery table. Call it once before first use.",
-				"inputSchema": obj(map[string]any{}),
-			},
-			{
-				"name": ToolLookupMAC,
-				"description": "Resolve one or more MAC addresses, BSSIDs, or registry prefixes, answered offline from the cached IEEE registries. " +
-					"Returns the address classification (cast, administration, well_known) and, when applicable, the matched assignment. " +
-					"Check vendor_lookup_applicable: when false there is no manufacturer to find.",
-				"inputSchema": obj(map[string]any{
-					"mac":  map[string]any{"type": "string", "description": "A single MAC address, BSSID, or 24/28/36-bit prefix. Colon, hyphen, dot, or bare hex."},
-					"macs": strArray,
-				}),
-			},
-			{
-				"name": ToolSearchVendor,
-				"description": "Find the IEEE assignments whose registrant name contains a substring (case-insensitive). " +
-					"Matches are returned inline, one page at a time: a large registrant holds hundreds of prefixes, so limit bounds the page (default 50) and offset walks the rest. has_more says whether any are left.",
-				"inputSchema": obj(map[string]any{
-					"query":  map[string]any{"type": "string", "description": "Substring of the registrant name, e.g. \"Apple\"."},
-					"limit":  map[string]any{"type": "integer", "description": "Matches per page (default 50). 0 means all of them."},
-					"offset": map[string]any{"type": "integer", "description": "0-based index of the first match to return (default 0)."},
-				}, "query"),
-			},
-			{
-				"name":        ToolUpdateDB,
-				"description": "Download the five IEEE Registration Authority registry files (MA-L, MA-M, MA-S, IAB, CID) and rebuild the local store. Conditional, so unchanged files cost nothing. No credentials required.",
-				"inputSchema": obj(map[string]any{}),
-			},
-			{
-				"name":        ToolDBStatus,
-				"description": "Report the cached registry's generation time, assignment count per registry, sources, and whether it is stale.",
-				"inputSchema": obj(map[string]any{}),
-			},
+	return []map[string]any{
+		{
+			"name":        ToolGetUsage,
+			"description": "Return this server's operating manual (markdown): the tools, the offline registry lifecycle, how to read a result, and the error-recovery table. Call it once before first use.",
+			"inputSchema": obj(map[string]any{}),
+		},
+		{
+			"name": ToolLookupMAC,
+			"description": "Resolve one or more MAC addresses, BSSIDs, or registry prefixes, answered offline from the cached IEEE registries. " +
+				"Returns the address classification (cast, administration, well_known) and, when applicable, the matched assignment. " +
+				"Check vendor_lookup_applicable: when false there is no manufacturer to find.",
+			"inputSchema": obj(map[string]any{
+				"mac":  map[string]any{"type": "string", "description": "A single MAC address, BSSID, or 24/28/36-bit prefix. Colon, hyphen, dot, or bare hex."},
+				"macs": strArray,
+			}),
+		},
+		{
+			"name": ToolSearchVendor,
+			"description": "Find the IEEE assignments whose registrant name contains a substring (case-insensitive). " +
+				"Matches are returned inline, one page at a time: a large registrant holds hundreds of prefixes, so limit bounds the page (default 50) and offset walks the rest. has_more says whether any are left.",
+			"inputSchema": obj(map[string]any{
+				"query":  map[string]any{"type": "string", "description": "Substring of the registrant name, e.g. \"Apple\"."},
+				"limit":  map[string]any{"type": "integer", "description": "Matches per page (default 50). 0 means all of them."},
+				"offset": map[string]any{"type": "integer", "description": "0-based index of the first match to return (default 0)."},
+			}, "query"),
+		},
+		{
+			"name":        ToolUpdateDB,
+			"description": "Download the five IEEE Registration Authority registry files (MA-L, MA-M, MA-S, IAB, CID) and rebuild the local store. Conditional, so unchanged files cost nothing. No credentials required.",
+			"inputSchema": obj(map[string]any{}),
+		},
+		{
+			"name":        ToolDBStatus,
+			"description": "Report the cached registry's generation time, assignment count per registry, sources, and whether it is stale.",
+			"inputSchema": obj(map[string]any{}),
 		},
 	}
 }
 
-func (s *server) toolsCall(ctx context.Context, params json.RawMessage) (toolResult, *rpcError) {
-	var p struct {
-		Name      string          `json:"name"`
-		Arguments json.RawMessage `json:"arguments"`
-	}
-	if err := json.Unmarshal(params, &p); err != nil {
-		return toolResult{}, &rpcError{Code: -32602, Message: "invalid params: " + err.Error()}
-	}
-	switch p.Name {
+// toolsCall dispatches one call by tool name and builds its result.
+func (s *server) toolsCall(ctx context.Context, name string, args json.RawMessage) toolResult {
+	switch name {
 	case ToolGetUsage:
 		// No arguments — which still means "none", not "any".
-		if err := decodeArgs(p.Arguments, &struct{}{}); err != nil {
-			return textResult(true, err.Error()), nil
+		if err := decodeArgs(args, &struct{}{}); err != nil {
+			return textResult(true, err.Error())
 		}
-		return textResult(false, usageMarkdown), nil
+		return textResult(false, usageMarkdown)
 	case ToolLookupMAC:
-		return s.toolLookupMAC(p.Arguments), nil
+		return s.toolLookupMAC(args)
 	case ToolSearchVendor:
-		return s.toolSearchVendor(p.Arguments), nil
+		return s.toolSearchVendor(args)
 	case ToolUpdateDB:
-		if err := decodeArgs(p.Arguments, &struct{}{}); err != nil {
-			return textResult(true, err.Error()), nil
+		if err := decodeArgs(args, &struct{}{}); err != nil {
+			return textResult(true, err.Error())
 		}
-		return s.toolUpdateDB(ctx), nil
+		return s.toolUpdateDB(ctx)
 	case ToolDBStatus:
-		if err := decodeArgs(p.Arguments, &struct{}{}); err != nil {
-			return textResult(true, err.Error()), nil
+		if err := decodeArgs(args, &struct{}{}); err != nil {
+			return textResult(true, err.Error())
 		}
-		return s.toolDBStatus(), nil
+		return s.toolDBStatus()
 	default:
-		return toolResult{}, &rpcError{Code: -32602, Message: "unknown tool: " + p.Name}
+		// Not reached: the protocol layer refuses a tool it did not register.
+		return textResult(true, "unknown tool: "+name)
 	}
 }
 

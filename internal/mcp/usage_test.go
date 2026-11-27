@@ -75,7 +75,7 @@ func TestUsageDocumentsTheTeapot(t *testing.T) {
 // anyway; TestUnknownArgumentIsRefusedByName covers it.
 func TestEveryToolSchemaIsValidAndClosed(t *testing.T) {
 	s := &server{}
-	b, err := json.Marshal(s.toolsList())
+	b, err := json.Marshal(map[string]any{"tools": s.toolsList()})
 	if err != nil {
 		t.Fatalf("marshal tool list: %v", err)
 	}
