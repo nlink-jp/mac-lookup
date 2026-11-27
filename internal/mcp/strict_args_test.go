@@ -60,7 +60,6 @@ func TestMalformedArgumentsAreRefused(t *testing.T) {
 	}{
 		{"number for string", ToolLookupMAC, `{"mac":1}`},
 		{"string for array", ToolLookupMAC, `{"macs":"286FB9000001"}`},
-		{"array for object", ToolLookupMAC, `["286FB9000001"]`},
 		{"string for integer", ToolSearchVendor, `{"query":"Nokia","limit":"all"}`},
 	}
 	for _, tc := range cases {
@@ -89,5 +88,25 @@ func TestOmittedArgumentsStillMeanNone(t *testing.T) {
 		if isErr {
 			t.Errorf("db_status with arguments %q was refused: %s", args, text)
 		}
+	}
+}
+
+// Arguments that are not an object never reach a tool: the protocol layer
+// refuses them with -32602 (server-migration §4), before decodeArgs.
+func TestNonObjectArgumentsAreAProtocolError(t *testing.T) {
+	e, _ := newServer(t, true)
+	resps := rpc(t, e, call(ToolLookupMAC, `["286FB9000001"]`))
+	if resps[0]["error"] == nil {
+		t.Errorf("array arguments were not a protocol error: %v", resps[0])
+	}
+}
+
+// encoding/json matches names case-insensitively; the schema does not. An
+// argument spelt in another case is refused by name.
+func TestAnArgumentInAnotherCaseIsRefused(t *testing.T) {
+	e, _ := newServer(t, true)
+	text, isErr := callText(t, rpc(t, e, call(ToolLookupMAC, `{"MAC":"286FB9000001"}`))[0])
+	if !isErr || !strings.Contains(text, `unknown field "MAC"`) {
+		t.Errorf("MAC was accepted: %s", text)
 	}
 }
